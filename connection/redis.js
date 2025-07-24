@@ -1,7 +1,7 @@
 import { createClient } from 'redis';
 import { config } from '../config.js'; 
 
-export class Redis {
+export default class Redis {
   constructor(redisUrl = null) {
     this.redisUrl = redisUrl || config.url;
     this.client = null;
