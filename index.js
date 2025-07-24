@@ -1,2 +1,2 @@
-import Redis from './connection/redis.js';
-export default Redis;
+const Redis = require('./connection/redis.js');
+module.exports = Redis;
