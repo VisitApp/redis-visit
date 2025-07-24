@@ -1,3 +1,3 @@
-export const config = { 
- url: 'redis.getvisitapp-stage.internal'
-}
+module.exports = { 
+    url: 'redis.getvisitapp-stage.internal'
+};

@@ -1,7 +1,7 @@
-import { createClient } from 'redis';
-import { config } from '../config.js'; 
+const { createClient } = require('redis');
+const { config } = require('../config.js');
 
-export default class Redis {
+class Redis {
   constructor(redisUrl = null) {
     this.redisUrl = redisUrl || config.url;
     this.client = null;
@@ -10,13 +10,25 @@ export default class Redis {
   async connect() {
     if (this.client) return;
 
-    this.client = createClient({ url: this.redisUrl });
+    try {
+      const formattedUrl = this.redisUrl.startsWith('redis://') ? this.redisUrl : `redis://${this.redisUrl}`;
+      this.client = createClient({ url: formattedUrl });
 
-    this.client.on('error', (err) => {
-      console.error('[Redis Error]:', err);
-    });
+      this.client.on("connect", () => {
+        console.log(formattedUrl,"Connected to Redis over TLS!");
+      });
+      this.client.on("error", (err) => {
+        console.log("Redis connection error: ", err);
+      });
+      this.client.on("ready", () => {
+         console.log("Redis client is ready!");
+      });
 
-    await this.client.connect();
+      await this.client.connect();
+    } catch (error) {
+      console.error('Failed to create Redis client:', error);
+      throw error;
+    }
   }
 
   async get(key) {
@@ -24,13 +36,13 @@ export default class Redis {
     return await this.client.get(key);
   }
 
-async hGet(key, fields = null) {
+  async hGet(key, fields = null) {
+    console.log({key, fields} ,"hGet-----")
     await this.connect();
 
     if (!key) {
         return null;
     }
-
     if (fields && Array.isArray(fields)) {
         const data = await this.client.hmGet(key, fields);
         return data.reduce((acc, value, index) => {
@@ -41,13 +53,17 @@ async hGet(key, fields = null) {
         const value = await this.client.hGet(key, fields);
         return { [fields]: value };
     } else {
+      console.log({key, fields} ,"hGet-----1")
+
         const data = await this.client.hGetAll(key);
+        console.log({data} ,"hGet-----2")
+
         if (!data || Object.keys(data).length === 0) {
             return null;
         }
         return data;
     }
-}
+  }
 
   async set(key, value, expirationInSec = null) {
     await this.connect();
@@ -79,7 +95,6 @@ async hGet(key, fields = null) {
       await this.client.expire(key, expirationInSec);
     }
   }
-
 
   async del(key) {
     await this.connect();
@@ -118,3 +133,5 @@ async hGet(key, fields = null) {
     }
   }
 }
+
+module.exports = Redis;
