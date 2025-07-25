@@ -1,6 +1,6 @@
 const redis = require('redis');
 const bluebird = require('bluebird');
-const { config } = require('../config.js');
+const config  = require('../config.js');
 
 // Promisify BEFORE creating client
 bluebird.promisifyAll(redis.RedisClient.prototype);
@@ -16,20 +16,25 @@ class Redis {
     if (this.client) return;
 
     try {
-      const { hostname, port } = new URL(
-        this.redisUrl.startsWith('redis://') ? this.redisUrl : `redis://${this.redisUrl}`
-      );
 
-      this.client = redis.createClient({ host: hostname, port });
+      this.client = await redis.createClient({ host: this.redisUrl, port: config.port, password : config.password, tls: {
+        rejectUnauthorized: false
+    } });
 
       this.client.on("connect", () => {
         console.log(`${this.redisUrl} Connected to Redis!`);
       });
       this.client.on("error", (err) => {
-        console.error("Redis connection error: ", err);
+         console.error("Redis connection error: ", err);
       });
       this.client.on("ready", () => {
         console.log("Redis client is ready!");
+      });
+      this.client.on('reconnecting', () => {
+        console.log('Redis reconnecting...');
+      });
+      this.client.on('end', () => {
+        console.log('Redis connection closed');
       });
 
     } catch (error) {
@@ -40,34 +45,45 @@ class Redis {
 
   async get(key) {
     await this.connect();
-    return await this.client.getAsync(key);
+    const data = await this.client.getAsync(key);
+    if (!data || Object.keys(data).length === 0) return null;
+
+    return data
   }
 
   async hGet(key, fields = null) {
     await this.connect();
-
+  
     if (!key) return null;
-
-    console.log({key, fields} ," Redis Get keys")
+  
+  
     if (fields && Array.isArray(fields)) {
-      const data = await this.client.hmgetAsync(key, fields);
-      return data.reduce((acc, value, index) => {
-        acc[fields[index]] = value;
+      const values = await this.client.hmgetAsync(key, fields);
+  
+      // Redis returns ['val1', null, 'val3'] if some fields are missing
+      if (!values || values.every(v => !v)) {
+        return null; 
+      }
+  
+      return fields.reduce((acc, field, index) => {
+        acc[field] = values[index]; 
         return acc;
       }, {});
     } else if (fields && typeof fields === 'string') {
-      const value = await this.client.hgetAsync(key, fields);
-      return { [fields]: value };
+      console.log({key, fields}, "ssssssssss")
+      const data = await this.client.hgetAsync(key, fields);
+      console.log(data, "dataaaa")
+
+      if (!data) return null;
+      return { [fields]: data };
     } else {
-      console.log(" Redis Get Before Call")
-
       const data = await this.client.hgetallAsync(key);
-      console.log(" Redis Get After Call")
-
-      if (!data || Object.keys(data).length === 0) return null;
+      if (!data || Object.keys(data).length === 0) {
+        return null; 
+      }
       return data;
     }
-  }
+  }  
 
   async set(key, value, expirationInSec = null) {
     await this.connect();
