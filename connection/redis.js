@@ -70,10 +70,7 @@ class Redis {
         return acc;
       }, {});
     } else if (fields && typeof fields === 'string') {
-      console.log({key, fields}, "ssssssssss")
       const data = await this.client.hgetAsync(key, fields);
-      console.log(data, "dataaaa")
-
       if (!data) return null;
       return { [fields]: data };
     } else {
@@ -96,7 +93,11 @@ class Redis {
 
   async hSet(key, data, expirationInSec = null) {
     await this.connect();
-    await this.client.hmsetAsync(key, data);
+    console.log({key, data}, "dataaaa")
+
+    const res = await this.client.hmsetAsync(key, data);
+    console.log(res, "Success")
+
     if (expirationInSec) {
       await this.client.expireAsync(key, expirationInSec);
     }
